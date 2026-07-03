@@ -1,0 +1,85 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "1. Parse supplied PDF (safe)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "args": [
+        "--output",
+        "runtime/last-parse.json",
+        "parse",
+        "--pdf",
+        "C:\\Users\\you\\Downloads\\sample-statement.pdf"
+      ]
+    },
+    {
+      "name": "2. Preview QuickBooks split (safe)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "args": [
+        "--config",
+        "config.json",
+        "--output",
+        "runtime/last-qbo-preview.json",
+        "split",
+        "--pdf",
+        "C:\\Users\\you\\Downloads\\sample-statement.pdf"
+      ]
+    },
+    {
+      "name": "3. Preview Gmail attachments (safe)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "args": [
+        "--config",
+        "config.json",
+        "--output",
+        "runtime/last-gmail-preview.json",
+        "gmail",
+        "--max-results",
+        "25"
+      ]
+    },
+    {
+      "name": "4. Authorize QuickBooks",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/authorize_quickbooks.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env"
+    },
+    {
+      "name": "5. APPLY split to QuickBooks (writes data)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/main.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "args": [
+        "--config",
+        "config.json",
+        "--output",
+        "runtime/last-qbo-apply.json",
+        "split",
+        "--pdf",
+        "C:\\Users\\you\\Downloads\\sample-statement.pdf",
+        "--apply"
+      ]
+    }
+  ]
+}

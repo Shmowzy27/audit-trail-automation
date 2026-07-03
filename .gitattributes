@@ -1,0 +1,19 @@
+# Normalize line endings so `git add` stops warning "LF will be replaced by CRLF".
+# Text files are stored LF in the repo; Git checks them out with the platform's
+# native endings. Vendored/minified assets and binaries are left untouched.
+* text=auto
+
+*.py   text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.html text eol=lf
+*.css  text eol=lf
+*.js   text eol=lf
+*.ps1  text eol=crlf
+
+# Vendored library — don't normalize (keep as shipped).
+ui/vendor/** -text
+
+*.pdf  binary
+*.png  binary
+*.jpg  binary

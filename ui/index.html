@@ -1,0 +1,1761 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit Trail — Review & Apply</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%231f6feb'/%3E%3Cpath d='M9 8h10l4 4v12H9z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3Cpath d='M12 17l3 3 5-6' fill='none' stroke='white' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<style>
+  /* ---------- design tokens ---------- */
+  :root {
+    color-scheme: dark;
+    --bg: #0c0f16;
+    --panel: #151a25;
+    --panel-2: #1a2130;
+    --field: #10141d;
+    --border: #262e3f;
+    --border-soft: #1f2634;
+    --text: #e9ecf3;
+    --text-strong: #ffffff;
+    --text-dim: #8d96ab;
+    --accent: #3b82f6;
+    --accent-hover: #5b96f8;
+    --green: #4ade80;  --green-bg: #0e2b1b;  --green-bd: #1e5b39;
+    --amber: #fbbf24;  --amber-bg: #2b230e;  --amber-bd: #5b4a1e;
+    --red:   #f87171;  --red-bg:   #2b1013;  --red-bd:   #5b1e26;
+    --radius: 10px;
+    --shadow: 0 1px 2px rgba(0,0,0,.35), 0 6px 20px rgba(0,0,0,.22);
+    --ease: cubic-bezier(.22,.61,.36,1);
+  }
+  /* ---------- light theme (toggled via data-theme on <html>) ---------- */
+  html[data-theme="light"] {
+    color-scheme: light;
+    --bg: #e3e8f0;          /* soft grey content backdrop so white cards float */
+    --panel: #ffffff; --panel-2: #f2f5fa; --field: #ffffff;
+    --border: #c3cddf; --border-soft: #d5dde9;
+    --text: #14202f; --text-strong: #0d1826; --text-dim: #4c5870;
+    --accent: #2563eb; --accent-hover: #1d4ed8;
+    --green: #15803d;  --green-bg: #d8f3e1;  --green-bd: #8bd3a2;
+    --amber: #955105;  --amber-bg: #fbeaca;  --amber-bd: #e7b459;
+    --red:   #bf1d1d;  --red-bg:   #fbdede;  --red-bd:   #ec9f9f;
+    --shadow: 0 1px 2px rgba(20,30,50,.06), 0 8px 22px rgba(20,30,50,.10);
+  }
+  /* Top chrome is white with hairline separators; content sits on grey. */
+  html[data-theme="light"] header,
+  html[data-theme="light"] .controls,
+  html[data-theme="light"] #stepper { background: #ffffff; }
+  html[data-theme="light"] header { background: linear-gradient(180deg, #f6f9fc, #fff); }
+  /* Secondary buttons get a real fill so they read as buttons, not empty inputs. */
+  html[data-theme="light"] button:not(.primary):not(.apply):not(.danger) {
+    background: #eef2f8; border-color: #c7d1e0;
+  }
+  html[data-theme="light"] button:not(.primary):not(.apply):not(.danger):hover:not(:disabled) {
+    background: #e1e8f2; border-color: #b3bfd3;
+  }
+  html[data-theme="light"] .grpLabel { color: #6b7688; }
+  html[data-theme="light"] tbody tr:nth-child(even) { background: rgba(20,30,50,.032); }
+  html[data-theme="light"] tbody tr:hover { background: rgba(37,99,235,.10); }
+  html[data-theme="light"] .cell.edited { background: #fff3d4; }
+  html[data-theme="light"] #splitTable tr.na { background: #fbe1e1; }
+  html[data-theme="light"] .skel { background: linear-gradient(90deg,#e5eaf2 25%,#d7dfea 40%,#e5eaf2 55%); background-size: 400% 100%; }
+  html[data-theme="light"] #detailScroll::-webkit-scrollbar-thumb { background: #bfc9d9; border-color: var(--bg); }
+  html[data-theme="light"] #divider { background: #d0d8e4; }
+  html[data-theme="light"] #divider::after { background: #9aa6ba; }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; height: 100vh; overflow: hidden;
+    display: flex; flex-direction: column;
+    font-family: "Segoe UI Variable Text", "Segoe UI", system-ui, Arial, sans-serif;
+    font-size: 14px; line-height: 1.45;
+    background: var(--bg); color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- header & control bars ---------- */
+  header {
+    flex: none; padding: 10px 18px;
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    background: linear-gradient(180deg, #131824, var(--bg));
+    border-bottom: 1px solid var(--border-soft);
+    border-top: 2px solid transparent;
+    border-image: linear-gradient(90deg, var(--accent), #7c5cf0 55%, var(--green)) 1;
+  }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .brand .mark {
+    width: 34px; height: 34px; flex: none; border-radius: 9px;
+    background: linear-gradient(135deg, #1f6feb, #7c5cf0);
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 3px 12px rgba(59,130,246,.35);
+  }
+  .brand .mark svg { width: 20px; height: 20px; }
+  header h1 { font-size: 15.5px; font-weight: 700; letter-spacing: .2px; margin: 0; line-height: 1.15; }
+  .tagline { font-size: 11.5px; color: var(--text-dim); margin-top: 1px; }
+  #envBanner {
+    font-weight: 700; padding: 4px 12px; border-radius: 999px;
+    font-size: 12px; letter-spacing: .6px;
+  }
+  .env-sandbox { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bd); }
+  .env-production {
+    background: var(--red-bg); color: var(--red); border: 1px solid var(--red-bd);
+    animation: prodPulse 2.2s var(--ease) infinite;
+  }
+  /* envBanner is a button — keep its pill colors on hover (beats base button:hover). */
+  #envBanner.env-sandbox:hover { background: var(--green-bg); border-color: var(--green-bd); }
+  #envBanner.env-production:hover { background: var(--red-bg); border-color: var(--red-bd); }
+  @keyframes prodPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248,113,113,0); }
+    50%      { box-shadow: 0 0 0 6px rgba(248,113,113,.12); }
+  }
+  .controls {
+    flex: none; display: flex; gap: 8px; align-items: center;
+    padding: 9px 18px; border-bottom: 1px solid var(--border-soft);
+    flex-wrap: wrap; background: var(--bg);
+  }
+  .controls.sub { border-top: 0; padding-top: 0; }
+  .grpLabel {
+    font-size: 10.5px; font-weight: 700; letter-spacing: .8px;
+    text-transform: uppercase; color: var(--text-dim);
+    margin-right: 2px; user-select: none;
+  }
+  .vdiv { width: 1px; height: 24px; background: var(--border); margin: 0 6px; flex: none; }
+
+  /* ---------- empty state ---------- */
+  .empty { text-align: center; padding: 9vh 24px 0; color: var(--text-dim); animation: cardIn .4s var(--ease); }
+  .empty .big { font-size: 40px; line-height: 1; opacity: .9; }
+  .empty h3 { color: var(--text); font-size: 16px; font-weight: 650; margin: 14px 0 4px; }
+  .empty p { margin: 4px 0 18px; font-size: 13px; }
+  .empty .steps {
+    display: inline-flex; flex-direction: column; gap: 10px; text-align: left;
+    background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 20px; box-shadow: var(--shadow); font-size: 13px;
+  }
+  .empty .steps b { color: var(--text); }
+  .empty .dotN {
+    display: inline-flex; width: 20px; height: 20px; border-radius: 50%;
+    align-items: center; justify-content: center; flex: none;
+    background: var(--panel-2); border: 1px solid var(--border);
+    font-size: 11px; font-weight: 700; color: var(--accent-hover); margin-right: 9px;
+  }
+
+  /* ---------- loading skeleton ---------- */
+  .skelCard { margin-bottom: 14px; }
+  .skel {
+    height: 13px; border-radius: 6px; margin: 9px 0;
+    background: linear-gradient(90deg, var(--panel-2) 25%, #232c40 40%, var(--panel-2) 55%);
+    background-size: 400% 100%;
+    animation: shimmer 1.3s linear infinite;
+  }
+  @keyframes shimmer { to { background-position: -135% 0; } }
+
+  /* ---------- toast ---------- */
+  #toast {
+    position: fixed; right: 18px; bottom: 18px; z-index: 90;
+    max-width: 420px; padding: 12px 16px; border-radius: 10px;
+    background: var(--panel-2); border: 1px solid var(--border);
+    box-shadow: 0 12px 36px rgba(0,0,0,.5); font-size: 13px;
+    display: none; align-items: flex-start; gap: 10px;
+  }
+  #toast.show { display: flex; animation: toastIn .25s var(--ease); }
+  #toast.ok { border-left: 3px solid var(--green); }
+  #toast.err { border-left: 3px solid var(--red); }
+  @keyframes toastIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+  /* ---------- progress stepper ---------- */
+  #stepper {
+    flex: none; display: flex; align-items: center; gap: 12px;
+    padding: 8px 18px; font-size: 12px;
+    border-bottom: 1px solid var(--border-soft); background: var(--bg);
+  }
+  .step { display: flex; align-items: center; gap: 7px; color: var(--text-dim); transition: color .2s var(--ease); }
+  .step .dot {
+    width: 20px; height: 20px; border-radius: 50%; flex: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    background: var(--panel-2); border: 1px solid var(--border); color: var(--text-dim);
+    transition: background .2s var(--ease), border-color .2s var(--ease),
+                color .2s var(--ease), box-shadow .2s var(--ease);
+  }
+  .step.current { color: var(--text); font-weight: 600; }
+  .step.current .dot {
+    background: var(--accent); border-color: var(--accent); color: #fff;
+    box-shadow: 0 0 0 4px rgba(59,130,246,.15);
+  }
+  .step.done { color: var(--green); }
+  .step.done .dot { background: var(--green-bg); border-color: var(--green-bd); color: var(--green); }
+  .stepSep { flex: none; width: 26px; height: 1px; background: var(--border); }
+
+  /* ---------- fields & buttons ---------- */
+  select, input, button, textarea {
+    font-size: 13px; font-family: inherit;
+    padding: 8px 11px; border-radius: 8px;
+    border: 1px solid var(--border); background: var(--field); color: var(--text);
+    transition: border-color .18s var(--ease), background .18s var(--ease),
+                box-shadow .18s var(--ease), transform .12s var(--ease), opacity .18s;
+  }
+  select { min-width: 340px; cursor: pointer; }
+  select:hover, input:hover:not(:disabled) { border-color: #35405a; }
+  :focus-visible { outline: none; }
+  select:focus-visible, input:focus-visible, textarea:focus-visible {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(59,130,246,.18);
+  }
+  button { cursor: pointer; font-weight: 550; }
+  button:hover:not(:disabled) { border-color: #3a465f; background: var(--panel-2); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(0) scale(.97); }
+  button:focus-visible { box-shadow: 0 0 0 3px rgba(59,130,246,.25); }
+  button.primary {
+    background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 640;
+    box-shadow: 0 2px 10px rgba(59,130,246,.28);
+  }
+  button.primary:hover:not(:disabled) { background: var(--accent-hover); border-color: var(--accent-hover); }
+  button.apply {
+    background: #1f8b4c; border-color: #1f8b4c; color: #fff; font-weight: 700;
+    box-shadow: 0 2px 10px rgba(31,139,76,.30);
+  }
+  button.apply:hover:not(:disabled) { background: #25a35a; border-color: #25a35a; }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button.danger { border-color: var(--red-bd); color: var(--red); background: var(--red-bg); }
+  button.danger:hover:not(:disabled) { background: #3b171b; border-color: #7a2a33; }
+  .tinybtn { font-size: 11px; padding: 4px 9px; }
+
+  /* ---------- split panes with draggable divider ---------- */
+  .panes { flex: 1; min-height: 0; display: flex; }
+  .pdfPane { flex: none; width: 48%; min-width: 0; display: flex; flex-direction: column; }
+  .pdfPane iframe { width: 100%; flex: 1; min-height: 0; border: 0; background: #fff; }
+  /* PDF.js continuous-scroll document */
+  #pdfDoc { flex: 1; min-height: 0; overflow: auto; display: none; background: #3b4046; padding: 12px 0; }
+  html[data-theme="light"] #pdfDoc { background: #96a0ac; }
+  #pdfDoc::-webkit-scrollbar { width: 12px; }
+  #pdfDoc::-webkit-scrollbar-thumb { background: #6b7280; border-radius: 8px; border: 3px solid transparent; background-clip: content-box; }
+  .pdfPage { position: relative; margin: 0 auto 12px; background: #fff; box-shadow: 0 3px 14px rgba(0,0,0,.45); }
+  .pdfPage canvas { display: block; }
+  .pdfHL { position: absolute; inset: 0; pointer-events: none; }
+  .pdfMark { position: absolute; background: rgba(255,209,0,.40); border-radius: 2px; transition: background .12s; }
+  .pdfMark.cur { background: rgba(255,130,0,.62); outline: 2px solid #ff7a00; }
+  #pdfBar {
+    flex: none; display: flex; align-items: center; gap: 8px;
+    padding: 7px 10px; background: var(--panel-2); border-bottom: 1px solid var(--border);
+  }
+  #pdfBar .mag { flex: none; color: var(--text-dim); font-size: 13px; }
+  #pdfBar input { flex: 1; min-width: 0; font-size: 12.5px; padding: 6px 9px; }
+  #pdfCount { flex: none; font-size: 11.5px; color: var(--text-dim); max-width: 42%;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #pdfBar .tinybtn { flex: none; }
+  #divider {
+    flex: none; width: 7px; cursor: col-resize;
+    background: var(--border-soft);
+    border-left: 1px solid var(--border-soft); border-right: 1px solid var(--border-soft);
+    transition: background .18s var(--ease);
+    position: relative;
+  }
+  #divider::after {           /* grip dots */
+    content: ""; position: absolute; top: 50%; left: 50%;
+    width: 3px; height: 34px; transform: translate(-50%,-50%);
+    border-radius: 3px; background: #3a465f; opacity: .8;
+    transition: background .18s, height .18s var(--ease);
+  }
+  #divider:hover, #divider.dragging { background: rgba(59,130,246,.28); }
+  #divider:hover::after, #divider.dragging::after { background: var(--accent-hover); height: 52px; }
+
+  /* Review pane = pinned summary bar + scrolling body. */
+  .detailPane { flex: 1; min-width: 0; display: flex; flex-direction: column; padding: 0; }
+  #summaryHost { flex: none; }
+  #summaryHost:empty { display: none; }
+  #summaryBar {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 18px; font-size: 13px;
+    background: var(--panel-2); border-bottom: 1px solid var(--border);
+    box-shadow: var(--shadow);
+    animation: cardIn .3s var(--ease);
+  }
+  .sb-prop {
+    font-weight: 650; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 28%;
+  }
+  .sb-item { white-space: nowrap; color: var(--text-dim); }
+  .sb-item b { color: var(--text-strong); }
+  #detailScroll { flex: 1; min-height: 0; overflow-y: auto; padding: 14px 18px 16px; }
+
+  /* ---------- scrollbars ---------- */
+  #detailScroll::-webkit-scrollbar { width: 10px; }
+  #detailScroll::-webkit-scrollbar-track { background: transparent; }
+  #detailScroll::-webkit-scrollbar-thumb {
+    background: #2a3345; border-radius: 8px; border: 2px solid var(--bg);
+  }
+  #detailScroll::-webkit-scrollbar-thumb:hover { background: #3a465f; }
+  #detailScroll { scrollbar-width: thin; scrollbar-color: #2a3345 transparent; }
+
+  /* ---------- cards ---------- */
+  .card {
+    background: var(--panel); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 14px 16px; margin-bottom: 14px;
+    box-shadow: var(--shadow);
+    animation: cardIn .38s var(--ease) backwards;
+  }
+  .card:nth-child(1) { animation-delay: .02s; }
+  .card:nth-child(2) { animation-delay: .07s; }
+  .card:nth-child(3) { animation-delay: .12s; }
+  .card:nth-child(4) { animation-delay: .17s; }
+  .card:nth-child(5) { animation-delay: .22s; }
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+  }
+
+  /* Collapsible cards (native <details> — accessible, no JS needed to toggle). */
+  details.card { padding: 0; }
+  details.card > summary {
+    list-style: none; cursor: pointer; user-select: none;
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 16px; border-radius: var(--radius);
+    transition: background .15s var(--ease);
+  }
+  details.card > summary::-webkit-details-marker { display: none; }
+  details.card > summary:hover { background: rgba(255,255,255,.03); }
+  details.card[open] > summary { border-bottom: 1px solid var(--border-soft); border-radius: var(--radius) var(--radius) 0 0; }
+  .chev { margin-left: auto; color: var(--text-dim); font-size: 16px; line-height: 1; transition: transform .2s var(--ease); }
+  details.card[open] .chev { transform: rotate(90deg); }
+  .cardBody { padding: 10px 16px 14px; animation: fadeIn .25s var(--ease); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  .cardTools { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; flex-wrap: wrap; }
+  .cardTools input { font-size: 12px; padding: 5px 9px; }
+
+  /* ---------- status & badges ---------- */
+  .status {
+    display: inline-block; padding: 3px 11px; border-radius: 999px;
+    font-weight: 700; font-size: 12px; letter-spacing: .3px;
+  }
+  .s-ok      { background: var(--green-bg); color: var(--green); border: 1px solid var(--green-bd); }
+  .s-review  { background: var(--amber-bg); color: var(--amber); border: 1px solid var(--amber-bd); }
+  .s-blocked { background: var(--red-bg);   color: var(--red);   border: 1px solid var(--red-bd); }
+  .badge { padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 700; }
+  .c-high   { background: var(--green-bg); color: var(--green); }
+  .c-medium { background: var(--amber-bg); color: var(--amber); }
+  .c-low    { background: var(--red-bg);   color: var(--red); }
+  .c- { background: #2a2f3a; color: #c8cede; }
+
+  /* ---------- tables ---------- */
+  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--border-soft); white-space: nowrap; }
+  th {
+    color: var(--text-dim); font-weight: 600; font-size: 11.5px;
+    text-transform: uppercase; letter-spacing: .5px;
+    position: sticky; top: 0; background: var(--panel); z-index: 1;
+  }
+  tbody tr { transition: background .15s var(--ease); }
+  tbody tr:nth-child(even) { background: rgba(255,255,255,.016); }
+  tbody tr:hover { background: rgba(255,255,255,.045); }
+  td.amt { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+  td.amt.pos { color: #6ee7a0; }
+  td.amt.neg { color: #f0a0a0; }
+  html[data-theme="light"] td.amt.pos { color: #15803d; }
+  html[data-theme="light"] td.amt.neg { color: #c11f1f; }
+  #splitTable tr.na { background: #241417; }   /* a line needing an account */
+  .cell {
+    width: 100%; min-width: 170px; max-width: 340px;
+    background: var(--field); border: 1px solid var(--border); color: var(--text);
+    border-radius: 6px; padding: 4px 7px; font-size: 12px;
+    transition: border-color .18s var(--ease), background .18s var(--ease), box-shadow .18s var(--ease);
+  }
+  .cell:hover { border-color: #35405a; }
+  .cell.edited { border-color: var(--amber); background: #201c10; }
+
+  /* ---------- QuickBooks-style account picker ---------- */
+  .acctBtn { text-align: left; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  #acctPop {
+    position: fixed; z-index: 60; width: 400px;
+    display: flex; flex-direction: column;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 10px; box-shadow: 0 12px 40px rgba(0,0,0,.55);
+    animation: popIn .15s var(--ease);
+  }
+  #acctPop input { margin: 8px; flex: none; }
+  #acctList { overflow-y: auto; padding: 2px 0 6px; max-height: 300px; }
+  #acctList::-webkit-scrollbar { width: 10px; }
+  #acctList::-webkit-scrollbar-thumb { background: #2a3345; border-radius: 8px; border: 2px solid var(--panel-2); }
+  .acctHead {
+    padding: 8px 12px 3px; font-size: 11px; font-weight: 700; letter-spacing: .4px;
+    color: var(--text); border-top: 1px solid var(--border-soft); margin-top: 4px;
+  }
+  .acctHead:first-child { border-top: 0; margin-top: 0; }
+  .acctRow { display: flex; align-items: center; gap: 10px; padding: 6px 12px; cursor: pointer; font-size: 12.5px; }
+  .acctRow:hover, .acctRow.hl { background: rgba(59,130,246,.16); }
+  .acctRow .nm { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .acctRow .ty {
+    margin-left: auto; flex: none; max-width: 46%;
+    font-style: italic; color: var(--text-dim); font-size: 11.5px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .acctRow.sel .nm { color: var(--accent-hover); font-weight: 650; }
+
+  /* ---------- notices ---------- */
+  .muted { color: var(--text-dim); }
+  .where { color: var(--amber); font-size: 12px; }
+  .warn {
+    border-left: 3px solid var(--amber); padding: 8px 12px; margin: 8px 0;
+    background: var(--amber-bg); border-radius: 0 8px 8px 0; font-size: 12.5px;
+  }
+  .result-ok {
+    border-left: 3px solid var(--green); padding: 12px; background: var(--green-bg);
+    border-radius: 0 8px 8px 0; animation: popIn .3s var(--ease);
+  }
+  .result-err {
+    border-left: 3px solid var(--red); padding: 12px; background: var(--red-bg);
+    border-radius: 0 8px 8px 0; animation: popIn .3s var(--ease);
+  }
+  @keyframes popIn { from { opacity: 0; transform: scale(.985); } to { opacity: 1; transform: none; } }
+  textarea { width: 100%; resize: vertical; }
+  .row { display: flex; gap: 18px; flex-wrap: wrap; }
+  .kv b { color: var(--text-strong); }
+
+  /* ---------- loading spinner ---------- */
+  .loading { display: inline-flex; align-items: center; gap: 10px; color: var(--text-dim); padding: 6px 0; }
+  .spinner {
+    width: 16px; height: 16px; flex: none; border-radius: 50%;
+    border: 2px solid var(--border); border-top-color: var(--accent);
+    animation: spin .7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- connectors modal ---------- */
+  #connOverlay {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(5,8,14,.62); backdrop-filter: blur(3px);
+    display: none; align-items: flex-start; justify-content: center; padding-top: 9vh;
+  }
+  #connOverlay.open { display: flex; }
+  #connPanel {
+    width: 520px; max-width: 94vw;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,.6);
+    animation: popIn .18s var(--ease);
+  }
+  #connPanel header {
+    background: none; border-bottom: 1px solid var(--border-soft);
+    padding: 14px 18px; display: flex; align-items: center;
+  }
+  #connPanel h2 { font-size: 15px; margin: 0; font-weight: 650; }
+  #connClose { margin-left: auto; padding: 4px 10px; }
+  .connRow {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 18px; border-bottom: 1px solid var(--border-soft);
+  }
+  .connRow:last-child { border-bottom: 0; }
+  .connIcon {
+    font-size: 17px; flex: none; width: 38px; height: 38px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 9px; background: var(--panel); border: 1px solid var(--border);
+  }
+  .connIcon svg { width: 22px; height: 22px; display: block; }
+  .connIcon.gmail { background: #f6f8fc; border-color: #dfe4ee; }
+  .connInfo { min-width: 0; flex: 1; }
+  .connName { font-weight: 600; font-size: 13.5px; }
+  .connDetail { font-size: 12px; color: var(--text-dim); margin-top: 2px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .connRow .badge { flex: none; }
+  .connRow button { flex: none; min-width: 96px; }
+
+  /* ---------- shared modal (audit history + environment switch) ---------- */
+  .mdlOverlay {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(5,8,14,.62); backdrop-filter: blur(3px);
+    display: none; align-items: flex-start; justify-content: center; padding-top: 9vh;
+  }
+  .mdlOverlay.open { display: flex; }
+  .mdlPanel {
+    width: 620px; max-width: 94vw; max-height: 80vh; display: flex; flex-direction: column;
+    background: var(--panel-2); border: 1px solid var(--border);
+    border-radius: 12px; box-shadow: 0 18px 60px rgba(0,0,0,.6);
+    animation: popIn .18s var(--ease);
+  }
+  .mdlPanel > header {
+    background: none; border-bottom: 1px solid var(--border-soft);
+    padding: 14px 18px; display: flex; align-items: center; gap: 10px;
+  }
+  .mdlPanel h2 { font-size: 15px; margin: 0; font-weight: 650; }
+  .mdlPanel > header .tinybtn { margin-left: auto; padding: 4px 10px; }
+  .mdlBody { overflow: auto; }
+  .mdlHint { font-size: 11.5px; color: var(--text-dim); padding: 10px 18px; border-bottom: 1px solid var(--border-soft); }
+
+  /* audit history rows */
+  .auditRow {
+    display: flex; align-items: center; gap: 12px;
+    padding: 13px 18px; border-bottom: 1px solid var(--border-soft); cursor: pointer;
+  }
+  .auditRow:hover { background: var(--panel); }
+  .auditRow:last-child { border-bottom: 0; }
+  .auditMain { min-width: 0; flex: 1; }
+  .auditName { font-weight: 600; font-size: 13.5px; }
+  .auditSub { font-size: 12px; color: var(--text-dim); margin-top: 2px; }
+  .auditBack { padding: 12px 18px; border-bottom: 1px solid var(--border-soft); }
+  .auditMeta { padding: 12px 18px; font-size: 12.5px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; }
+  .auditMeta b { color: var(--text-dim); font-weight: 600; }
+  .auditTbl { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  .auditTbl th, .auditTbl td { padding: 6px 18px; border-bottom: 1px solid var(--border-soft); text-align: left; }
+  .auditTbl th { color: var(--text-dim); font-weight: 600; position: sticky; top: 0; background: var(--panel-2); }
+  .auditTbl td.r, .auditTbl th.r { text-align: right; font-variant-numeric: tabular-nums; }
+  .auditTbl td.pos { color: var(--green); }
+  .auditTbl td.neg { color: var(--red); }
+
+  /* environment switch cards */
+  .envCard { border: 1px solid var(--border); border-radius: 10px; padding: 14px 16px; margin: 14px 18px; background: var(--panel); }
+  .envCard h3 { margin: 0 0 6px; font-size: 13.5px; display: flex; align-items: center; gap: 8px; }
+  .envCard p { margin: 6px 0; font-size: 12.5px; color: var(--text-dim); }
+  .envCard.warn { border-color: var(--red-bd); background: var(--red-bg); }
+  .envCard.warn p { color: var(--text); }
+  .envCard input { width: 170px; min-width: 0; margin-right: 8px; text-transform: uppercase; }
+
+  /* ---------- accessibility ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="mark" aria-hidden="true">
+      <svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <path d="M8 5h11l5 5v17H8z" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"/>
+        <path d="M12 18l3.2 3.2L21 14" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </span>
+    <div>
+      <h1>Audit Trail</h1>
+      <div class="tagline">Owner packets → reviewed splits → QuickBooks, safely.</div>
+    </div>
+  </div>
+  <button id="envBanner" title="Click to switch between the Sandbox and Production company">…</button>
+  <button id="themeBtn" style="margin-left:auto" title="Switch between dark and light mode">☀️ Light</button>
+  <button id="auditBtn" title="Browse the history of applied splits (pre-apply backups)">🧾 Audit history</button>
+  <button id="connectorsBtn" title="Connect Gmail, QuickBooks, and the Keyrenter portal">🔌 Connectors</button>
+</header>
+
+<div class="controls">
+  <span class="grpLabel">Statement</span>
+  <select id="pdfSelect"><option>Loading statements…</option></select>
+  <span class="vdiv"></span>
+  <span class="grpLabel">Deposit</span>
+  <input id="depositId" placeholder="Deposit ID (optional)" style="width:150px">
+  <button id="previewDepBtn" title="Show this deposit's current state in QuickBooks (read-only, no automation)">👁 Preview deposit</button>
+  <span class="vdiv"></span>
+  <button id="previewBtn" class="primary">▶ Start automation</button>
+  <button id="resetBtn" title="Discard your edits and start this packet over. Never changes QuickBooks.">⟲ Reset</button>
+  <span class="vdiv"></span>
+  <button id="fetchBtn" title="Pull new owner packets from Gmail and the Keyrenter portal into the folder">📥 Fetch new packets</button>
+  <span id="controlMsg" class="muted"></span>
+</div>
+
+<div class="controls sub">
+  <span class="grpLabel">Find deposit</span>
+  <input id="depFrom" type="date" title="From date" style="width:150px">
+  <input id="depTo" type="date" title="To date" style="width:150px">
+  <button id="lookupBtn">🔍 Look up</button>
+  <label class="muted" style="display:flex;align-items:center;gap:5px;cursor:pointer"
+    title="Show only deposits from your configured property managers (Keyrenter / Sample PM)">
+    <input type="checkbox" id="depScope" checked style="width:auto;min-width:0"> Keyrenter/Nashville only</label>
+  <select id="depResults" style="min-width:300px"><option value="">— results —</option></select>
+  <button id="attachBtn" title="Fill the Deposit ID with the selected deposit — then run Start automation against it">📎 Attach</button>
+  <span id="lookupMsg" class="muted"></span>
+</div>
+
+<div id="stepper" aria-label="Progress">
+  <div class="step" id="step1"><span class="dot">1</span>Select packet</div>
+  <div class="stepSep"></div>
+  <div class="step" id="step2"><span class="dot">2</span>Preview</div>
+  <div class="stepSep"></div>
+  <div class="step" id="step3"><span class="dot">3</span>Review &amp; edit</div>
+  <div class="stepSep"></div>
+  <div class="step" id="step4"><span class="dot">4</span>Apply</div>
+</div>
+
+<div id="connOverlay">
+  <div id="connPanel">
+    <header><h2>🔌 Connectors</h2><button id="connClose" class="tinybtn">✕ Close</button></header>
+    <div id="connList"><div class="connRow"><span class="muted">Loading…</span></div></div>
+  </div>
+</div>
+
+<div id="auditOverlay" class="mdlOverlay">
+  <div class="mdlPanel">
+    <header><h2>🧾 Audit history</h2><button class="tinybtn" onclick="closeAudits()">✕ Close</button></header>
+    <div class="mdlHint">Every applied split is snapshotted just before it's written to QuickBooks. Click a row to see the exact lines. Newest first.</div>
+    <div class="mdlBody" id="auditBody"><div class="auditRow"><span class="muted">Loading…</span></div></div>
+  </div>
+</div>
+
+<div id="envOverlay" class="mdlOverlay">
+  <div class="mdlPanel" style="width:520px">
+    <header><h2>🧭 Switch environment</h2><button class="tinybtn" onclick="closeEnv()">✕ Close</button></header>
+    <div class="mdlBody" id="envBody"><div class="envCard"><span class="muted">Loading…</span></div></div>
+  </div>
+</div>
+
+<div class="panes" id="panes">
+  <div class="pdfPane" id="pdfPane">
+    <div id="pdfBar">
+      <span class="mag">🔍</span>
+      <input id="pdfSearch" placeholder="Search this packet — amount, property, category…">
+      <span id="pdfCount"></span>
+      <button id="pdfPrev" class="tinybtn" title="Previous match">‹</button>
+      <button id="pdfNext" class="tinybtn" title="Next match">›</button>
+    </div>
+    <div id="pdfDoc"></div>
+    <iframe id="pdfFrame" title="Statement PDF" style="display:none"></iframe>
+  </div>
+  <div id="divider" title="Drag to resize"></div>
+  <div class="detailPane" id="detail">
+    <div id="summaryHost"></div>
+    <div id="detailScroll"></div>
+  </div>
+</div>
+
+<div id="toast"><span id="toastIcon"></span><span id="toastMsg"></span></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+
+// Welcome / empty state shown before a packet is picked (and after Reset).
+const EMPTY_HTML = `<div class="empty">
+  <div class="big">📄→✅</div>
+  <h3>Review &amp; apply owner-statement splits</h3>
+  <p>Nothing posts to QuickBooks without screening and your approval.</p>
+  <div class="steps">
+    <span><span class="dotN">1</span><b>Select a packet</b> — or 📥 fetch the newest from Gmail &amp; the Keyrenter portal</span>
+    <span><span class="dotN">2</span><b>▶ Start automation</b> — finds the deposit and proposes the split beside the PDF</span>
+    <span><span class="dotN">3</span><b>Review &amp; edit</b> — accounts and customers are editable; amounts stay locked</span>
+    <span><span class="dotN">4</span><b>Apply</b> — gated, verified after writing, with a printable confirmation</span>
+  </div>
+</div>`;
+
+// Skeleton placeholder while a preview runs — reads smoother than a bare spinner.
+const SKELETON_HTML = `
+  <div class="loading"><span class="spinner"></span>Running preview — reading the PDF and checking QuickBooks…</div>
+  <div class="card skelCard"><div class="skel" style="width:45%"></div><div class="skel" style="width:70%"></div></div>
+  <div class="card skelCard"><div class="skel" style="width:30%"></div><div class="skel" style="width:88%"></div>
+    <div class="skel" style="width:82%"></div><div class="skel" style="width:85%"></div></div>`;
+
+let TOAST_TIMER = null;
+function showToast(message, ok = true) {
+  const t = $("toast");
+  $("toastIcon").textContent = ok ? "✅" : "⚠️";
+  $("toastMsg").textContent = message;
+  t.className = "show " + (ok ? "ok" : "err");
+  if (TOAST_TIMER) clearTimeout(TOAST_TIMER);
+  TOAST_TIMER = setTimeout(() => { t.className = ""; }, 5200);
+}
+
+let ENV = "sandbox";
+let OVERRIDES = {};   // {lineNum: {account, customer}} — reviewer edits
+let ACCOUNTS = [], CUSTOMERS = [];
+let LAST_PREVIEW = null;   // {property, month, net} — for the printable confirmation
+let LAST_APPLY = null;     // {deposit_id, line_count, total, when, notes, approved, env}
+
+function updateEnvBanner() {
+  const b = $("envBanner");
+  b.textContent = ENV === "production" ? "⚠ PRODUCTION" : "SANDBOX";
+  b.className = ENV === "production" ? "env-production" : "env-sandbox";
+}
+
+async function init() {
+  $("detailScroll").innerHTML = EMPTY_HTML;
+  const env = await (await fetch("/api/env")).json();
+  ENV = env.environment;
+  updateEnvBanner();
+
+  const count = await reloadPdfList();
+  $("controlMsg").textContent = `${count} statements`;
+  $("pdfSelect").onchange = onPacketChange;
+
+  ACCOUNTS = (await (await fetch("/api/accounts")).json()).accounts || [];
+  CUSTOMERS = (await (await fetch("/api/customers")).json()).customers || [];
+}
+
+// (Re)build the packet picker, keeping the current selection when possible.
+// Starts EMPTY — nothing loads until the user deliberately picks a packet.
+async function reloadPdfList() {
+  const sel = $("pdfSelect");
+  const current = sel.value;
+  const data = await (await fetch("/api/pdfs")).json();
+  sel.innerHTML = `<option value="">— Select a packet —</option>`;
+  for (const p of data.pdfs || []) {
+    const o = document.createElement("option");
+    o.value = p.path; o.textContent = `${p.folder} / ${p.name}`;
+    sel.appendChild(o);
+  }
+  if (current) sel.value = current;   // falls back to the placeholder if it vanished
+  return data.count || 0;
+}
+
+// Progress stepper: steps before `current` show as done (✓), `current` is highlighted.
+// Pass 5 to mark all four steps done (after a successful apply).
+function setStep(current) {
+  for (let i = 1; i <= 4; i++) {
+    const el = $("step" + i);
+    if (!el) return;
+    const done = i < current, cur = i === current;
+    el.classList.toggle("done", done);
+    el.classList.toggle("current", cur);
+    el.querySelector(".dot").textContent = done ? "✓" : i;
+  }
+}
+
+// When a packet is picked: show its PDF right away (no need to run anything first)
+// and pre-fill the deposit-lookup dates to where its deposit should be — statement
+// month start −5 days through month end +75 days, the same window the automatic
+// search uses. No more scrolling the date picker back through the years.
+function onPacketChange() {
+  const sel = $("pdfSelect");
+  $("depositId").value = "";   // never carry the previous packet's deposit across
+  if (!sel.value) {   // back to the "— Select a packet —" placeholder
+    $("pdfFrame").src = "about:blank";
+    $("summaryHost").innerHTML = "";
+    $("detailScroll").innerHTML = EMPTY_HTML;
+    setStep(1);
+    return;
+  }
+  showPdf(sel.value);
+  const label = sel.options[sel.selectedIndex]?.textContent || "";
+  const m = label.match(/- (\d{2})-(\d{2}) - /);   // "Owner Packet - Keyrenter - MM-YY - amount"
+  if (m) {
+    const month = +m[1], year = 2000 + +m[2];
+    const from = new Date(year, month - 1, 1 - 5);        // month start − 5 days
+    const to = new Date(year, month, 0 + 75);             // month end + 75 days
+    $("depFrom").value = isoDate(from);
+    $("depTo").value = isoDate(to);
+  }
+  setStep(2);   // packet selected — next action is Preview
+  // Auto-attach this packet's own deposit (or say plainly that none exists),
+  // exactly like the Look up bar's Attach behavior.
+  findAndShowDeposit(sel.value);
+}
+
+function isoDate(d) {
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Fallback URL for the native browser viewer (used only if PDF.js can't load).
+function pdfUrl(p, page) {
+  if (!page) return "/api/pdf?path=" + encodeURIComponent(p) + "#view=FitH";
+  return "/api/pdf?path=" + encodeURIComponent(p) + `&_j=${++PDF_NONCE}#page=${page}&view=FitH`;
+}
+
+let CURRENT_PDF = "", PDF_PAGES = [], PDF_MATCHES = [], PDF_MATCH_I = -1;
+let PDF_NONCE = 0, PDF_SHOWN_PAGE = 1, PDF_MODE = "iframe";
+let pdfjsLib = null, PDF_PAGE_DIVS = [];
+
+// Load the vendored PDF.js once (ES module + its worker).
+async function ensurePdfjs() {
+  if (pdfjsLib) return pdfjsLib;
+  const lib = await import("/vendor/pdf.min.mjs");
+  lib.GlobalWorkerOptions.workerSrc = "/vendor/pdf.worker.min.mjs";
+  pdfjsLib = lib;
+  return lib;
+}
+
+// Show a packet: render it crisply with PDF.js; fall back to the browser viewer.
+async function showPdf(path) {
+  CURRENT_PDF = path;
+  resetPdfSearch();
+  try {
+    await renderPdfJs(path);
+    PDF_MODE = "js";
+    $("pdfDoc").style.display = "block";
+    $("pdfFrame").style.display = "none";
+  } catch (e) {
+    PDF_MODE = "iframe";
+    PDF_SHOWN_PAGE = 1;
+    $("pdfDoc").style.display = "none";
+    $("pdfFrame").style.display = "block";
+    $("pdfFrame").src = pdfUrl(path);
+    loadPdfText(path);
+  }
+}
+
+// Render every page to a high-DPI canvas (sharp at 100%), plus a transparent
+// highlight layer positioned over the text for search.
+async function renderPdfJs(path) {
+  const lib = await ensurePdfjs();
+  const doc = await lib.getDocument({ url: "/api/pdf?path=" + encodeURIComponent(path) }).promise;
+  const container = $("pdfDoc");
+  container.innerHTML = "";
+  PDF_PAGE_DIVS = [];
+  const paneW = container.clientWidth || $("pdfPane").clientWidth || 620;
+  const dpr = window.devicePixelRatio || 1;
+  for (let n = 1; n <= doc.numPages; n++) {
+    const page = await doc.getPage(n);
+    const scale = Math.max(0.2, (paneW - 24) / page.getViewport({ scale: 1 }).width);
+    const viewport = page.getViewport({ scale });
+    const wrap = document.createElement("div");
+    wrap.className = "pdfPage";
+    wrap.style.width = viewport.width + "px";
+    wrap.style.height = viewport.height + "px";
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.floor(viewport.width * dpr);
+    canvas.height = Math.floor(viewport.height * dpr);
+    canvas.style.width = viewport.width + "px";
+    canvas.style.height = viewport.height + "px";
+    wrap.appendChild(canvas);
+    const hl = document.createElement("div");
+    hl.className = "pdfHL";
+    wrap.appendChild(hl);
+    container.appendChild(wrap);
+    await page.render({
+      canvasContext: canvas.getContext("2d"),
+      viewport,
+      transform: dpr !== 1 ? [dpr, 0, 0, dpr, 0, 0] : undefined,
+    }).promise;
+    const tc = await page.getTextContent();
+    PDF_PAGE_DIVS.push({ hl, viewport, scale, items: tc.items });
+  }
+}
+
+async function loadPdfText(path) {
+  PDF_PAGES = [];
+  try {
+    const d = await (await fetch("/api/pdf-text?path=" + encodeURIComponent(path))).json();
+    if (d.ok) PDF_PAGES = d.pages || [];
+  } catch (e) { /* search just stays empty */ }
+}
+
+function resetPdfSearch() {
+  const s = $("pdfSearch"); if (s) s.value = "";
+  PDF_MATCHES = []; PDF_MATCH_I = -1;
+  $("pdfCount").textContent = "";
+  PDF_PAGE_DIVS.forEach(pg => { if (pg.hl) pg.hl.innerHTML = ""; });
+}
+
+// Commas (thousands separators) must not block a match: "1748" finds "1,748".
+function normSearch(s) { return String(s).toLowerCase().replace(/,/g, ""); }
+
+function runPdfSearch() {
+  const q = normSearch($("pdfSearch").value.trim());
+  PDF_MATCHES = []; PDF_MATCH_I = -1;
+
+  if (PDF_MODE === "js") {   // real highlight over the rendered text
+    PDF_PAGE_DIVS.forEach((pg, pi) => {
+      pg.hl.innerHTML = "";
+      if (q.length < 2) return;
+      for (const item of pg.items) {
+        if (!item.str || !normSearch(item.str).includes(q)) continue;
+        const tx = pdfjsLib.Util.transform(pg.viewport.transform, item.transform);
+        const h = Math.hypot(tx[2], tx[3]) || 10;
+        const w = (item.width || 0) * pg.scale;
+        const mark = document.createElement("div");
+        mark.className = "pdfMark";
+        mark.style.cssText = `left:${tx[4]}px;top:${tx[5] - h}px;width:${w}px;height:${h * 1.18}px`;
+        pg.hl.appendChild(mark);
+        PDF_MATCHES.push({ el: mark, page: pi + 1, line: item.str.trim() });
+      }
+    });
+    if (q.length < 2) { $("pdfCount").textContent = ""; return; }
+    if (!PDF_MATCHES.length) { $("pdfCount").textContent = "no match"; return; }
+    gotoPdfMatch(0);
+    return;
+  }
+
+  // iframe fallback: server text + page jump (no in-PDF highlight)
+  if (q.length < 2) { $("pdfCount").textContent = ""; return; }
+  PDF_PAGES.forEach((text, i) => {
+    for (const line of (text || "").split("\n"))
+      if (normSearch(line).includes(q)) PDF_MATCHES.push({ page: i + 1, line: line.trim() });
+  });
+  if (!PDF_MATCHES.length) { $("pdfCount").textContent = PDF_PAGES.length ? "no match" : "…"; return; }
+  gotoPdfMatch(0);
+}
+
+function gotoPdfMatch(i) {
+  if (!PDF_MATCHES.length) return;
+  PDF_MATCH_I = (i + PDF_MATCHES.length) % PDF_MATCHES.length;
+  const m = PDF_MATCHES[PDF_MATCH_I];
+  if (PDF_MODE === "js") {
+    PDF_MATCHES.forEach(x => x.el.classList.remove("cur"));
+    m.el.classList.add("cur");                                    // outline the current hit
+    m.el.scrollIntoView({ block: "center", behavior: "smooth" });  // and scroll to it
+  } else if (m.page !== PDF_SHOWN_PAGE) {
+    $("pdfFrame").src = pdfUrl(CURRENT_PDF, m.page);
+    PDF_SHOWN_PAGE = m.page;
+  }
+  const snip = m.line.length > 46 ? m.line.slice(0, 46) + "…" : m.line;
+  $("pdfCount").textContent = `${PDF_MATCH_I + 1}/${PDF_MATCHES.length} · p${m.page} · ${snip}`;
+  $("pdfCount").title = m.line;
+}
+
+// Build a <select> listing ALL options, with the current value selected (kept even if
+// it's not in the list, so nothing is silently lost).
+function selectCell(values, current, line, field) {
+  current = current || "";
+  let found = false, opts = "";
+  for (const v of values) {
+    if (v === current) found = true;
+    opts += `<option value="${esc(v)}"${v===current ? " selected" : ""}>${esc(v || "(none)")}</option>`;
+  }
+  if (!found) opts = `<option value="${esc(current)}" selected>${esc(current || "(none)")}</option>` + opts;
+  return `<select class="cell" data-line="${line}" data-field="${field}">${opts}</select>`;
+}
+
+// Account picker modeled on QuickBooks' own: account-type headers, sub-accounts
+// indented under their parent, an italic "Sub-account of …" label on the right,
+// and type-to-search. The value the engine receives stays the FullyQualifiedName.
+const TYPE_ORDER = ["Income", "Other Income", "Expense", "Other Expense", "Cost of Goods Sold",
+  "Equity", "Bank", "Other Current Liability", "Long Term Liability",
+  "Other Current Asset", "Fixed Asset", "Accounts Receivable", "Accounts Payable", "Credit Card"];
+
+function typeSort(x, y) {
+  const ix = TYPE_ORDER.indexOf(x), iy = TYPE_ORDER.indexOf(y);
+  return ((ix === -1 ? 99 : ix) - (iy === -1 ? 99 : iy)) || String(x).localeCompare(String(y));
+}
+
+// The table cell is a button showing the current account; clicking opens the picker.
+function accountCell(current, line) {
+  current = current || "";
+  return `<button type="button" class="cell acctBtn" data-line="${line}" data-value="${esc(current)}" title="${esc(current)}">${esc(current || "(none)")}</button>`;
+}
+
+let ACCT_POP = null, ACCT_TARGET = null;
+
+function openAcctPicker(btn) {
+  closeAcctPicker();
+  ACCT_TARGET = btn;
+  const pop = document.createElement("div");
+  pop.id = "acctPop";
+  pop.innerHTML = `<input id="acctSearch" placeholder="Search accounts…"><div id="acctList"></div>`;
+  document.body.appendChild(pop);
+  ACCT_POP = pop;
+  const r = btn.getBoundingClientRect();
+  const W = 400;
+  pop.style.left = Math.max(10, Math.min(r.left, window.innerWidth - W - 10)) + "px";
+  // Open below the cell; flip above if there is no room.
+  const H = Math.min(352, window.innerHeight - 20);
+  pop.style.top = (r.bottom + 4 + H > window.innerHeight ? Math.max(10, r.top - H - 4) : r.bottom + 4) + "px";
+  renderAcctList("");
+  const s = $("acctSearch");
+  s.focus();
+  s.addEventListener("input", () => renderAcctList(s.value));
+  s.addEventListener("keydown", acctKeys);
+  setTimeout(() => document.addEventListener("pointerdown", acctOutside, true), 0);
+}
+
+function acctOutside(e) { if (ACCT_POP && !ACCT_POP.contains(e.target)) closeAcctPicker(); }
+
+function closeAcctPicker() {
+  if (!ACCT_POP) return;
+  ACCT_POP.remove();
+  ACCT_POP = null;
+  ACCT_TARGET = null;
+  document.removeEventListener("pointerdown", acctOutside, true);
+}
+
+function renderAcctList(q) {
+  q = (q || "").trim().toLowerCase();
+  const current = ACCT_TARGET?.dataset.value || "";
+  const groups = new Map();
+  for (const a of ACCOUNTS) {
+    if (q && !a.fqn.toLowerCase().includes(q)) continue;
+    if (!groups.has(a.type)) groups.set(a.type, []);
+    groups.get(a.type).push(a);
+  }
+  let html = "";
+  for (const t of [...groups.keys()].sort(typeSort)) {
+    html += `<div class="acctHead">${esc(t)}</div>`;
+    for (const a of groups.get(t)) {   // fqn-sorted, so parents come before their children
+      const parts = a.fqn.split(":");
+      const depth = parts.length - 1;
+      const right = depth ? `Sub-account of ${parts[depth - 1]}` : t;
+      html += `<div class="acctRow${a.fqn === current ? " sel" : ""}" data-fqn="${esc(a.fqn)}" title="${esc(a.fqn)}"
+        style="padding-left:${12 + depth * 18}px"><span class="nm">${esc(a.name)}</span><span class="ty">${esc(right)}</span></div>`;
+    }
+  }
+  const list = $("acctList");
+  list.innerHTML = html || `<div class="acctRow"><span class="nm muted">No accounts match.</span></div>`;
+  list.querySelectorAll(".acctRow[data-fqn]").forEach(el =>
+    el.addEventListener("click", () => pickAccount(el.dataset.fqn)));
+  const sel = list.querySelector(".acctRow.sel");
+  if (sel && !q) sel.scrollIntoView({ block: "center" });
+}
+
+function acctKeys(e) {
+  if (e.key === "Escape") { closeAcctPicker(); return; }
+  const rows = [...(ACCT_POP?.querySelectorAll(".acctRow[data-fqn]") || [])];
+  if (!rows.length) return;
+  let i = rows.findIndex(r => r.classList.contains("hl"));
+  if (e.key === "ArrowDown") { e.preventDefault(); i = Math.min(rows.length - 1, i + 1); }
+  else if (e.key === "ArrowUp") { e.preventDefault(); i = Math.max(0, i - 1); }
+  else if (e.key === "Enter") { e.preventDefault(); (rows[i] || rows[0]).click(); return; }
+  else return;
+  rows.forEach(r => r.classList.remove("hl"));
+  rows[i].classList.add("hl");
+  rows[i].scrollIntoView({ block: "nearest" });
+}
+
+function pickAccount(fqn) {
+  const btn = ACCT_TARGET;
+  if (!btn) return;
+  btn.dataset.value = fqn;
+  btn.textContent = fqn;
+  btn.title = fqn;
+  btn.classList.add("edited");
+  const ln = btn.dataset.line;
+  OVERRIDES[ln] = OVERRIDES[ln] || {};
+  OVERRIDES[ln].account = fqn;
+  closeAcctPicker();
+}
+
+function esc(s){ return String(s??"").replace(/[&<>]/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c])); }
+
+// Income green, expense soft red — makes long splits scannable at a glance.
+function amtCls(a){ return String(a??"").trim().startsWith("-") ? "amt neg" : "amt pos"; }
+
+function statusClass(s){
+  if (s==="ready_to_split"||s==="already_split_matches") return "s-ok";
+  if (s==="blocked") return "s-blocked";
+  return "s-review";
+}
+
+// Show WHERE a warning comes from: property + category (duplicates span 2+ properties).
+function warnWhere(w){
+  if (w.lines && w.lines.length) {
+    return w.lines.map(l =>
+      `<span class="where"><b>${esc(l.property_class||"—")}</b> · ${esc(l.category||"")}</span>`
+    ).join(' <span class="muted">↔</span> ');
+  }
+  if (w.property_class || w.category) {
+    return `<span class="where"><b>${esc(w.property_class||"—")}</b> · ${esc(w.category||"")}</span>`;
+  }
+  return "";
+}
+
+async function preview(useOverrides) {
+  const pdf = $("pdfSelect").value;
+  if (!pdf) {
+    $("summaryHost").innerHTML = "";
+    $("detailScroll").innerHTML = "<p class='muted'>Select a packet first, then click <b>Start automation</b>.</p>";
+    return;
+  }
+  const depositId = $("depositId").value.trim();
+  if (!useOverrides) OVERRIDES = {};   // a fresh preview clears prior edits
+  if (CURRENT_PDF !== pdf) showPdf(pdf); else $("pdfFrame").src = pdfUrl(pdf);
+  $("summaryHost").innerHTML = "";
+  $("detailScroll").innerHTML = SKELETON_HTML;
+  const r = await fetch("/api/preview", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({pdf, deposit_id: depositId, overrides: OVERRIDES})});
+  const d = await r.json();
+  if (!d.ok) {
+    $("detailScroll").innerHTML = `<div class="result-err">${esc(d.error)}</div>`;
+    setStep(2);
+    return;
+  }
+  render(d, pdf, depositId);
+}
+
+function render(d, pdf, depositId) {
+  const sc = d.screening, st = d.statement, cf = d.confidence;
+  const conf = cf.summary || {};
+  LAST_PREVIEW = { property: st.property, month: st.month, net: st.net };
+
+  // ---- Pinned summary bar (stays visible while the split scrolls) ----
+  $("summaryHost").innerHTML = `<div id="summaryBar">
+    <span class="status ${statusClass(sc.status)}">${esc(sc.status)}</span>
+    <span class="sb-prop" title="${esc(st.property)}">${esc(st.property)}</span>
+    <span class="sb-item">Month <b>${esc(st.month)}</b></span>
+    <span class="sb-item">Net <b>$${esc(st.net)}</b></span>
+    <span class="sb-item">Deposit ${sc.deposit_id
+      ? `<b>#${esc(sc.deposit_id)}</b> <span class="badge c-high">found ✓</span>`
+      : `<span class="badge c-low">none matched</span>`}</span>
+  </div>`;
+
+  let html = "";
+
+  // ---- Screening detail ----
+  html += `<div class="card">
+    totals match: <b>${sc.total_matches ? "yes" : "no"}</b>
+    &nbsp; (deposit $${esc(sc.current_total)} vs PDF $${esc(sc.expected_total)})
+    <div class="muted" style="margin-top:6px">${esc(sc.summary)}</div>
+    ${(sc.reasons||[]).map(x=>`<div class="warn">${esc(x)}</div>`).join("")}
+    <div style="margin-top:8px">Confidence:
+      <span class="badge c-high">${conf.high||0} high</span>
+      <span class="badge c-medium">${conf.medium||0} medium</span>
+      <span class="badge c-low">${conf.low||0} low</span>
+    </div>
+  </div>`;
+
+  // ---- Warnings (collapsible; open when there are any) ----
+  const wcount = (d.warnings||[]).length;
+  let warnBody = "";
+  if (wcount) {
+    for (const w of d.warnings) {
+      warnBody += `<div class="warn"><b>[${esc(w.type)}]</b> <span class="amt-inline">${esc(w.amount)}</span>
+        &nbsp; ${warnWhere(w)}
+        <div class="muted" style="margin-top:3px">${esc(w.reason)}</div></div>`;
+    }
+  } else {
+    warnBody = `<p class="muted" style="margin:6px 0 0">No warnings — every line classified cleanly.</p>`;
+  }
+  html += `<details class="card"${wcount ? " open" : ""}>
+    <summary><b>⚠ Warnings to review</b>
+      <span class="badge ${wcount ? "c-medium" : "c-high"}">${wcount || "0 ✓"}</span>
+      <span class="chev">›</span></summary>
+    <div class="cardBody">${warnBody}</div>
+  </details>`;
+
+  // ---- Proposed split (collapsible, filterable, editable) ----
+  const needAcct = (d.lines || []).filter(l => l.needs_account).length;
+  html += `<details class="card" open>
+    <summary><b>🧾 Proposed split</b>
+      <span class="badge c-">${d.lines.length} lines</span>
+      ${needAcct ? `<span class="badge c-low">${needAcct} need account</span>` : ""}
+      <span class="chev">›</span></summary>
+    <div class="cardBody">
+      <div class="cardTools">
+        <input id="splitFilter" placeholder="Filter rows — account, category, amount…" style="flex:1;min-width:180px;max-width:340px">
+        <span class="muted" id="filterCount"></span>
+        <span style="flex:1"></span>
+        <span class="muted">Account &amp; Customer are editable</span>
+        <button class="tinybtn" onclick="preview(true)">Re-check with my edits ↻</button>
+      </div>`;
+  if (needAcct) {
+    html += `<div class="warn">⚠ <b>${needAcct} line(s) have no account yet.</b>
+      Pick an account for the highlighted row(s) below, then click <b>Re-check with my edits ↻</b> to unblock the split.</div>`;
+  }
+  html += `<table id="splitTable"><thead><tr><th>#</th><th>Amount</th><th>Category</th><th>Account</th><th>Customer</th><th>Conf.</th></tr></thead><tbody>`;
+  for (const l of d.lines) {
+    const na = l.needs_account;
+    const search = esc([l.amount, l.category, l.account, l.customer, l.confidence].join(" ").toLowerCase());
+    html += `<tr data-search="${search}"${na ? ' class="na"' : ''}><td>${l.line}</td><td class="${amtCls(l.amount)}">${esc(l.amount)}</td>
+      <td>${esc(l.category)}${na ? ' <span class="badge c-low">needs account</span>' : ''}</td>
+      <td>${accountCell(l.account, l.line)}</td>
+      <td>${selectCell([""].concat(CUSTOMERS), l.customer, l.line, "customer")}</td>
+      <td><span class="badge c-${esc(l.confidence||'high')}" title="${esc(l.driver)}">${esc(l.confidence)}</span></td></tr>`;
+  }
+  html += `</tbody></table></div></details>`;
+
+  // ---- Current QuickBooks split (collapsible; collapsed until wanted / after apply) ----
+  html += `<details class="card" id="qboCard">
+    <summary><b>🏦 Current QuickBooks split</b> <span class="muted" id="qboMeta"></span><span class="chev">›</span></summary>
+    <div class="cardBody"><div id="qboBody" class="muted">${sc.deposit_id ? "Loading from QuickBooks…" : "No matched deposit."}</div></div>
+  </details>`;
+
+  // ---- Apply section — gated by screening ----
+  html += `<div class="card" id="applyCard">`;
+  if (sc.apply_allowed) {
+    html += `<button class="apply" onclick="doApply(false)">Apply to QuickBooks (${ENV})</button>
+      <span class="muted"> — screening passed, no warnings.</span>`;
+  } else if (sc.status === "needs_review" || sc.status === "correction_preview") {
+    html += `<div class="muted" style="margin-bottom:8px">Screening flagged this for review. Confirm the warnings above are correctly labeled, then approve.</div>
+      <textarea id="notes" rows="2" placeholder="Review notes (what you checked)"></textarea>
+      <div style="margin-top:8px"><label><input type="checkbox" id="approveChk"> I reviewed the warnings and approve this split</label></div>
+      <button class="apply" style="margin-top:8px" onclick="doApply(true)">Approve &amp; Apply to QuickBooks (${ENV})</button>`;
+  } else {
+    html += `<button class="apply" disabled>Apply blocked</button>
+      <span class="muted"> — resolve the screening reasons above first.</span>`;
+  }
+  html += `<div id="applyResult" style="margin-top:10px"></div></div>`;
+
+  $("detailScroll").innerHTML = html;
+  $("detail").dataset.pdf = pdf;
+  $("detail").dataset.depositId = depositId;
+  $("detail").dataset.qboDepositId = sc.deposit_id || "";
+
+  // Wire the editable cells → OVERRIDES. Customers are native selects; accounts
+  // open the QuickBooks-style picker.
+  $("detailScroll").querySelectorAll("select.cell").forEach(inp => {
+    const ln = inp.dataset.line, f = inp.dataset.field;
+    if (OVERRIDES[ln] && OVERRIDES[ln][f] !== undefined) inp.classList.add("edited");
+    inp.addEventListener("change", () => {
+      OVERRIDES[ln] = OVERRIDES[ln] || {};
+      OVERRIDES[ln][f] = inp.value;
+      inp.classList.add("edited");
+    });
+  });
+  $("detailScroll").querySelectorAll(".acctBtn").forEach(btn => {
+    if (OVERRIDES[btn.dataset.line]?.account !== undefined) btn.classList.add("edited");
+    btn.addEventListener("click", () => openAcctPicker(btn));
+  });
+
+  // Type-to-filter on the proposed split.
+  $("splitFilter").addEventListener("input", filterSplit);
+
+  setStep(3);   // previewed — now reviewing
+  if (sc.deposit_id) loadQboSplit(sc.deposit_id);
+}
+
+// Filter the proposed-split rows by any text: amount, category, account, customer.
+function filterSplit() {
+  const q = ($("splitFilter")?.value || "").trim().toLowerCase();
+  const rows = document.querySelectorAll("#splitTable tbody tr");
+  let shown = 0;
+  rows.forEach(r => {
+    const hit = !q || (r.dataset.search || "").includes(q);
+    r.style.display = hit ? "" : "none";
+    if (hit) shown++;
+  });
+  $("filterCount").textContent = q ? `${shown} of ${rows.length} shown` : "";
+}
+
+async function loadQboSplit(depositId) {
+  const body = document.getElementById("qboBody");
+  const meta = document.getElementById("qboMeta");
+  if (!body) return;
+  try {
+    const d = await (await fetch("/api/deposit?id=" + encodeURIComponent(depositId))).json();
+    if (!d.ok) { body.innerHTML = `<span class="badge c-low">${esc(d.error)}</span>`; return; }
+    if (meta) meta.textContent = `— deposit ${esc(d.deposit_id)}, ${d.line_count} line(s), total $${esc(d.total)}`;
+    let t = `<table><thead><tr><th>#</th><th>Amount</th><th>Account</th><th>Received from</th></tr></thead><tbody>`;
+    for (const l of d.lines) {
+      t += `<tr><td>${esc(l.line_num)}</td><td class="${amtCls(l.amount)}">${esc(l.amount)}</td><td>${esc(l.account)}</td><td>${esc(l.received_from)}</td></tr>`;
+    }
+    body.innerHTML = t + `</tbody></table>`;
+  } catch (e) { body.innerHTML = `<span class="muted">Could not load deposit.</span>`; }
+}
+
+async function doApply(needsApproval) {
+  const pdf = $("detail").dataset.pdf;
+  const depositId = $("detail").dataset.depositId;
+  let approve = false, notes = "";
+  if (needsApproval) {
+    if (!$("approveChk").checked) { $("applyResult").innerHTML = `<div class="result-err">Tick the approval box first.</div>`; return; }
+    approve = true; notes = $("notes").value;
+  }
+  if (!confirm(`Apply this split to the ${ENV.toUpperCase()} QuickBooks company?`)) return;
+  $("applyResult").innerHTML = "<div class='loading'><span class='spinner'></span>Applying to QuickBooks and verifying the result…</div>";
+  const r = await fetch("/api/apply", {method:"POST", headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({pdf, deposit_id: depositId, approve, notes, overrides: OVERRIDES})});
+  const d = await r.json();
+  if (d.ok && d.status === "applied") {
+    const res = d.result || {};
+    LAST_APPLY = {
+      deposit_id: res.deposit_id, line_count: res.split_line_count, total: res.deposit_total,
+      when: new Date().toLocaleString(), notes, approved: needsApproval, env: ENV,
+    };
+    $("applyResult").innerHTML = `<div class="result-ok"><b>✓ Applied.</b> Deposit ${esc(res.deposit_id)} — ${esc(res.split_line_count)} lines, total $${esc(res.deposit_total)}. Verification passed.
+      <button class="tinybtn" style="margin-left:10px" onclick="printSummary()">🖨 Print confirmation</button></div>`;
+    showToast(`Applied — deposit #${res.deposit_id}, ${res.split_line_count} lines, verification passed.`);
+    setStep(5);   // all steps done
+    const qboCard = document.getElementById("qboCard");
+    if (qboCard) qboCard.setAttribute("open", "");   // show the posted result
+    const qid = $("detail").dataset.qboDepositId;
+    if (qid) loadQboSplit(qid);   // refresh to show the posted split in QuickBooks
+  } else if (d.status === "needs_approval") {
+    $("applyResult").innerHTML = `<div class="result-err">Needs approval — review the warnings and tick the box.</div>`;
+  } else {
+    $("applyResult").innerHTML = `<div class="result-err">${esc(d.error || (d.reasons||[]).join("; ") || "Blocked by screening.")}</div>`;
+  }
+}
+
+// Printable one-page confirmation of what was actually posted (re-reads the deposit
+// from QuickBooks so the table reflects the REAL posted state, not just the plan).
+async function printSummary() {
+  if (!LAST_APPLY) return;
+  let lines = [];
+  try {
+    const d = await (await fetch("/api/deposit?id=" + encodeURIComponent(LAST_APPLY.deposit_id))).json();
+    if (d.ok) lines = d.lines || [];
+  } catch (e) { /* table falls back to a notice below */ }
+  const rows = lines.map(l =>
+    `<tr><td>${esc(l.line_num)}</td><td class="r">${esc(l.amount)}</td><td>${esc(l.account)}</td><td>${esc(l.received_from)}</td><td>${esc(l.description||"")}</td></tr>`
+  ).join("");
+  const w = window.open("", "_blank");
+  w.document.write(`<!doctype html><html><head><title>Deposit split confirmation — #${esc(LAST_APPLY.deposit_id)}</title>
+  <style>
+    body { font-family: "Segoe UI", Arial, sans-serif; color: #111; margin: 32px; font-size: 13px; }
+    h1 { font-size: 18px; margin: 0 0 2px; }
+    .sub { color: #555; margin-bottom: 18px; }
+    .kv { margin: 3px 0; }
+    .kv b { display: inline-block; min-width: 170px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 14px; }
+    th, td { border: 1px solid #bbb; padding: 5px 8px; text-align: left; font-size: 12px; }
+    th { background: #f0f0f0; }
+    td.r { text-align: right; font-variant-numeric: tabular-nums; }
+  </style></head><body>
+  <h1>Owner statement split — applied to QuickBooks</h1>
+  <div class="sub">Generated ${esc(LAST_APPLY.when)} · Environment: ${esc(String(LAST_APPLY.env).toUpperCase())}</div>
+  <div class="kv"><b>Property / owner</b> ${esc(LAST_PREVIEW?.property || "")}</div>
+  <div class="kv"><b>Statement month</b> ${esc(LAST_PREVIEW?.month || "")}</div>
+  <div class="kv"><b>Statement net</b> $${esc(LAST_PREVIEW?.net || "")}</div>
+  <div class="kv"><b>QuickBooks deposit</b> #${esc(LAST_APPLY.deposit_id)}</div>
+  <div class="kv"><b>Split lines posted</b> ${esc(LAST_APPLY.line_count)}</div>
+  <div class="kv"><b>Deposit total</b> $${esc(LAST_APPLY.total)}</div>
+  <div class="kv"><b>Post-write verification</b> passed</div>
+  ${LAST_APPLY.approved ? `<div class="kv"><b>Approved via review</b> yes</div>
+  <div class="kv"><b>Review notes</b> ${esc(LAST_APPLY.notes || "—")}</div>` : ""}
+  <table><thead><tr><th>#</th><th>Amount</th><th>Account</th><th>Received from</th><th>Description</th></tr></thead>
+  <tbody>${rows || `<tr><td colspan="5">Could not re-read the deposit lines from QuickBooks.</td></tr>`}</tbody></table>
+  <script>window.print();<\/script></body></html>`);
+  w.document.close();
+}
+
+// Reset: CLEAR the unapproved review — edits, deposit ID, and the rendered
+// preview — back to a blank slate. It does not re-run anything and never
+// changes what is posted in QuickBooks.
+function resetReview() {
+  if (Object.keys(OVERRIDES).length &&
+      !confirm("Discard your edits and clear this review?\nQuickBooks is not changed.")) return;
+  OVERRIDES = {};
+  LAST_PREVIEW = null;
+  LAST_APPLY = null;
+  $("depositId").value = "";
+  $("lookupMsg").textContent = "";
+  $("summaryHost").innerHTML = "";
+  $("detailScroll").innerHTML = EMPTY_HTML;
+  setStep($("pdfSelect").value ? 2 : 1);
+  showToast("Review cleared — nothing changed in QuickBooks.");
+}
+
+// ---- Look up an existing deposit (browse by date, attach & preview) ----
+let LOOKUP_DEPOSITS = [];
+
+async function lookupDeposits() {
+  const start = $("depFrom").value, end = $("depTo").value;
+  if (!start || !end) { $("lookupMsg").textContent = "Pick a From and To date."; return; }
+  $("lookupMsg").textContent = "Looking up…";
+  const scope = $("depScope").checked ? "known" : "all";
+  try {
+    const d = await (await fetch(`/api/deposits?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&scope=${scope}`)).json();
+    if (!d.ok) { $("lookupMsg").textContent = d.error || "Lookup failed."; return; }
+    LOOKUP_DEPOSITS = d.deposits || [];
+    const sel = $("depResults");
+    sel.innerHTML = `<option value="">— ${d.count} deposit(s) —</option>`;
+    for (const dep of LOOKUP_DEPOSITS) {
+      const o = document.createElement("option");
+      o.value = dep.id;
+      o.textContent = `#${dep.id} · ${dep.date} · $${dep.total} · ${dep.line_count} line(s)`
+        + (dep.memo ? ` · ${dep.memo.slice(0, 22)}` : "");
+      sel.appendChild(o);
+    }
+    $("lookupMsg").textContent = d.count ? "" : "No deposits in that range.";
+  } catch (e) { $("lookupMsg").textContent = "Lookup failed."; }
+}
+
+// Attach: fill the Deposit ID with the picked deposit AND show its current
+// QuickBooks state beside the PDF (read-only — nothing runs until Start automation).
+function attachDeposit() {
+  const id = $("depResults").value;
+  if (!id) { $("lookupMsg").textContent = "Pick a deposit from the list first."; return; }
+  $("depositId").value = id;
+  $("lookupMsg").textContent = `Attached deposit #${id}.`;
+  showDepositState(id);
+}
+
+// Find the packet's matching deposit (same amount + date-window search the
+// automation uses), fill the Deposit ID bar with it, and show its current state.
+// If none exists: notify beside the PDF and leave the Deposit ID bar EMPTY.
+let FIND_SEQ = 0;   // guards against out-of-order results when switching packets quickly
+
+async function findAndShowDeposit(pdf) {
+  const seq = ++FIND_SEQ;
+  $("summaryHost").innerHTML = "";
+  $("detailScroll").innerHTML = "<div class='loading'><span class='spinner'></span>Searching QuickBooks for this packet's deposit…</div>";
+  try {
+    const f = await (await fetch("/api/find-deposit", {method:"POST", headers:{"Content-Type":"application/json"},
+      body: JSON.stringify({pdf})})).json();
+    if (seq !== FIND_SEQ) return;   // a newer packet selection superseded this search
+    if (!f.ok) { $("detailScroll").innerHTML = `<div class="result-err">${esc(f.error)}</div>`; return; }
+    if (!f.found) {
+      $("depositId").value = "";
+      $("detailScroll").innerHTML = `<div class="card"><b>No existing deposit for this packet.</b>
+        <div class="muted" style="margin-top:6px">${esc(f.message)}</div>
+        <div class="muted" style="margin-top:6px">Use <b>Look up</b> below for a more specific manual search, or check that the deposit exists in QuickBooks.</div></div>`;
+      return;
+    }
+    $("depositId").value = f.deposit_id;   // the packet's own deposit, ready for Start automation
+    showDepositState(f.deposit_id);
+  } catch (e) {
+    if (seq === FIND_SEQ) $("detailScroll").innerHTML = `<div class="result-err">Could not search for the deposit.</div>`;
+  }
+}
+
+// Preview deposit: show the deposit in the Deposit ID bar as it currently is in
+// QuickBooks (read-only); with the bar empty, auto-find the packet's deposit.
+async function previewDeposit() {
+  const id = $("depositId").value.trim();
+  if (id) { showDepositState(id); return; }
+  const pdf = $("pdfSelect").value;
+  if (!pdf) {
+    $("summaryHost").innerHTML = "";
+    $("detailScroll").innerHTML = "<p class='muted'>Select a packet first, then click <b>Preview deposit</b>.</p>";
+    return;
+  }
+  findAndShowDeposit(pdf);
+}
+
+// Render a deposit's current QuickBooks state (read-only) beside the PDF.
+async function showDepositState(id) {
+  $("summaryHost").innerHTML = "";
+  $("detailScroll").innerHTML = `<div class='loading'><span class='spinner'></span>Reading deposit #${esc(id)} from QuickBooks…</div>`;
+  try {
+    const d = await (await fetch("/api/deposit?id=" + encodeURIComponent(id))).json();
+    if (!d.ok) { $("detailScroll").innerHTML = `<div class="result-err">${esc(d.error)}</div>`; return; }
+    const unsplit = (d.line_count || 0) <= 1;
+    let html = `<div class="card"><b>Deposit #${esc(d.deposit_id)}</b>
+      <span class="muted"> — current state in QuickBooks (read-only) · ${d.line_count} line(s) · total $${esc(d.total)}</span>`;
+    if (unsplit) {
+      html += `<div class="warn" style="margin-top:8px">This deposit has <b>no split yet</b> — it is a single unsplit line.
+        Click <b>Start automation</b> to build one.</div>`;
+    }
+    html += `<table style="margin-top:8px"><thead><tr><th>#</th><th>Amount</th><th>Account</th><th>Received from</th></tr></thead><tbody>`;
+    for (const l of d.lines || []) {
+      html += `<tr><td>${esc(l.line_num)}</td><td class="${amtCls(l.amount)}">${esc(l.amount)}</td><td>${esc(l.account)}</td><td>${esc(l.received_from)}</td></tr>`;
+    }
+    html += `</tbody></table></div>`;
+    $("detailScroll").innerHTML = html;
+  } catch (e) {
+    $("detailScroll").innerHTML = `<div class="result-err">Could not read the deposit.</div>`;
+  }
+}
+
+// ---- Draggable divider: resize the PDF/detail panes smoothly ----
+(function () {
+  const divider = $("divider"), pdfPane = $("pdfPane"), panes = $("panes");
+  let dragging = false;
+  divider.addEventListener("pointerdown", (e) => {
+    dragging = true;
+    divider.classList.add("dragging");
+    divider.setPointerCapture(e.pointerId);
+    document.body.style.cursor = "col-resize";
+    $("pdfFrame").style.pointerEvents = "none";   // keep drag events off the PDF viewer
+  });
+  divider.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const rect = panes.getBoundingClientRect();
+    const min = rect.width * 0.20, max = rect.width * 0.75;
+    const w = Math.max(min, Math.min(max, e.clientX - rect.left));
+    pdfPane.style.width = w + "px";
+  });
+  const endDrag = () => {
+    if (!dragging) return;
+    dragging = false;
+    divider.classList.remove("dragging");
+    document.body.style.cursor = "";
+    $("pdfFrame").style.pointerEvents = "";
+  };
+  divider.addEventListener("pointerup", endDrag);
+  divider.addEventListener("pointercancel", endDrag);
+})();
+
+// ---- Connectors: one-click connect for Gmail / QuickBooks / Keyrenter ----
+// Brand marks drawn as inline SVG (self-contained, works offline, crisp at any
+// size): Gmail's four-color envelope M, QuickBooks' green qb roundel, and
+// Keyrenter's green key. Trademarks belong to their owners; shown here in the
+// standard "which service does this connector talk to" sense.
+const CONN_ICONS = {
+  // Gmail "M": blue left leg, green right leg, red chevron over the left+valley,
+  // yellow segment top-right — rounded caps, per the current Google mark.
+  gmail: `<svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" fill="none"
+      stroke-width="8.6" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M8 14v26" stroke="#4285F4"/>
+    <path d="M40 14v26" stroke="#34A853"/>
+    <path d="M40 13l-8 8" stroke="#FBBC04"/>
+    <path d="M8 13l16 16 8.5-8.5" stroke="#EA4335"/>
+  </svg>`,
+  // QuickBooks roundel: the qb ligature drawn as rings + stems (q descends,
+  // b ascends), white on Intuit green.
+  quickbooks: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="18" cy="18" r="17" fill="#2CA01C"/>
+    <g fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round">
+      <circle cx="12.2" cy="19" r="4.8"/>
+      <path d="M17 14.4V28"/>
+      <circle cx="23.8" cy="19" r="4.8"/>
+      <path d="M19 10v13.6"/>
+    </g>
+  </svg>`,
+  // Keyrenter's owner portal runs on AppFolio: blue roundel, white lowercase a.
+  keyrenter: `<svg viewBox="0 0 36 36" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="18" cy="18" r="17" fill="#1B75BB"/>
+    <text x="18" y="25" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif"
+      font-size="21" font-weight="600" fill="#fff">a</text>
+  </svg>`,
+};
+const CONN_NOTES = {};   // per-connector guidance shown while its sign-in runs
+let CONN_TIMER = null;
+
+function openConnectors() {
+  $("connOverlay").classList.add("open");
+  refreshConnectors();
+}
+
+function closeConnectors() {
+  $("connOverlay").classList.remove("open");
+  if (CONN_TIMER) { clearTimeout(CONN_TIMER); CONN_TIMER = null; }
+}
+
+async function refreshConnectors() {
+  if (!$("connOverlay").classList.contains("open")) return;
+  try {
+    const d = await (await fetch("/api/connectors")).json();
+    renderConnectors(d);
+    // Keep polling while any connect job is running (sign-in happens in another window).
+    const busy = Object.values(d.jobs || {}).some(j => j.running);
+    if (CONN_TIMER) clearTimeout(CONN_TIMER);
+    if (busy) CONN_TIMER = setTimeout(refreshConnectors, 3000);
+  } catch (e) {
+    $("connList").innerHTML = `<div class="connRow"><span class="muted">Could not load connector status.</span></div>`;
+  }
+}
+
+function renderConnectors(d) {
+  let html = "";
+  for (const c of d.connectors || []) {
+    const job = (d.jobs || {})[c.id] || {};
+    let badge, btn, detail = c.detail || "";
+    if (job.running) {
+      badge = `<span class="loading" style="padding:0"><span class="spinner"></span></span>`;
+      btn = `<button disabled>Connecting…</button>`;
+      detail = CONN_NOTES[c.id] || "Finish the sign-in in the window that opened…";
+    } else {
+      badge = c.connected
+        ? `<span class="badge c-high">connected</span>`
+        : `<span class="badge c-low">not connected</span>`;
+      btn = c.connected
+        ? `<button class="danger" onclick="disconnectService('${c.id}', '${esc(c.name)}')">Disconnect</button>`
+        : `<button class="primary" onclick="connectService('${c.id}')">Connect</button>`;
+      if (job.result && job.result.status && job.result.status !== "connected") {
+        detail = `${job.result.status}: ${job.result.detail || ""}`;
+      } else if (!c.connected && CONN_NOTES[c.id]) {
+        detail = CONN_NOTES[c.id];   // e.g. post-disconnect guidance
+      }
+      if (c.connected) delete CONN_NOTES[c.id];
+    }
+    html += `<div class="connRow">
+      <span class="connIcon ${esc(c.id)}">${CONN_ICONS[c.id] || "🔗"}</span>
+      <div class="connInfo"><div class="connName">${esc(c.name)}</div>
+        <div class="connDetail" title="${esc(detail)}">${esc(detail)}</div></div>
+      ${badge}${btn}
+    </div>`;
+  }
+  $("connList").innerHTML = html || `<div class="connRow"><span class="muted">No connectors.</span></div>`;
+}
+
+async function connectService(id) {
+  try {
+    const d = await (await fetch(`/api/connectors/${encodeURIComponent(id)}/connect`, { method: "POST" })).json();
+    if (d.note) CONN_NOTES[id] = d.note;   // shown in the row while the sign-in runs
+    if (d.error) CONN_NOTES[id] = d.error;
+    // Open the consent page HERE, in the same browser as this UI — the server
+    // can't know which browser/profile the user is looking at.
+    if (d.auth_url) window.open(d.auth_url, "_blank");
+  } catch (e) { /* status poll will show the failure */ }
+  refreshConnectors();
+}
+
+// Disconnect: removes the SAVED SIGN-IN on this computer (token/session file)
+// so a different account can be connected. Nothing changes at the provider.
+async function disconnectService(id, name) {
+  if (!confirm(`Disconnect ${name}?\n\nThe saved sign-in on this computer is removed so you can connect a different account. Nothing is changed at the provider.`)) return;
+  try {
+    const d = await (await fetch(`/api/connectors/${encodeURIComponent(id)}/disconnect`, { method: "POST" })).json();
+    CONN_NOTES[id] = d.note || d.error || "";
+  } catch (e) {
+    CONN_NOTES[id] = "Disconnect failed — try again.";
+  }
+  refreshConnectors();
+}
+
+// ---- Fetch new packets: Gmail + Keyrenter portal in one click ----
+async function fetchPackets() {
+  $("fetchBtn").disabled = true;
+  $("controlMsg").textContent = "Fetching from Gmail and the Keyrenter portal… (~30s)";
+  try {
+    await fetch("/api/fetch-packets", { method: "POST" });
+    pollFetchPackets();
+  } catch (e) {
+    $("fetchBtn").disabled = false;
+    $("controlMsg").textContent = "Fetch could not start — is the server running?";
+  }
+}
+
+async function pollFetchPackets() {
+  try {
+    const d = await (await fetch("/api/connectors")).json();
+    const job = (d.jobs || {}).fetch_packets;
+    if (job && job.running) { setTimeout(pollFetchPackets, 3000); return; }
+    const r = (job && job.result) || {};
+    $("controlMsg").textContent = r.detail || "Fetch finished.";
+    showToast(r.detail || "Fetch finished.", !(r.detail || "").includes("PROBLEM"));
+    await reloadPdfList();   // new packets appear in the picker immediately
+  } catch (e) {
+    $("controlMsg").textContent = "Fetch finished — refresh to see new packets.";
+  }
+  $("fetchBtn").disabled = false;
+}
+
+// ---- Audit history: browse the pre-apply split backups ----
+function fmtMoney(v) {
+  return (Number(v) || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function openAudits() { $("auditOverlay").classList.add("open"); loadAuditList(); }
+function closeAudits() { $("auditOverlay").classList.remove("open"); }
+
+async function loadAuditList() {
+  const body = $("auditBody");
+  body.innerHTML = `<div class="auditRow"><span class="muted">Loading…</span></div>`;
+  try {
+    const d = await (await fetch("/api/audits")).json();
+    if (!d.audits || !d.audits.length) {
+      body.innerHTML = `<div class="auditRow"><span class="muted">No applied splits yet — backups appear here after your first apply.</span></div>`;
+      return;
+    }
+    body.innerHTML = d.audits.map(a => {
+      const badge = a.status === "mismatch"
+        ? `<span class="badge c-low" title="Post-write verification caught a mismatch — the apply was refused as unsafe">verification failed</span>`
+        : `<span class="badge c-high">applied</span>`;
+      const money = a.total != null ? ` · $${fmtMoney(a.total)}` : "";
+      return `<div class="auditRow" onclick="openAudit('${esc(a.file)}')">
+        <span class="connIcon quickbooks">${CONN_ICONS.quickbooks}</span>
+        <div class="auditMain">
+          <div class="auditName">Deposit #${esc(a.deposit_id)} · ${esc(a.line_count)} lines</div>
+          <div class="auditSub">${esc(a.when || "")}${money}</div>
+        </div>${badge}
+      </div>`;
+    }).join("");
+  } catch (e) {
+    body.innerHTML = `<div class="auditRow"><span class="muted">Could not load audit history.</span></div>`;
+  }
+}
+
+async function openAudit(file) {
+  const body = $("auditBody");
+  body.innerHTML = `<div class="auditRow"><span class="muted">Loading…</span></div>`;
+  let d;
+  try { d = await (await fetch("/api/audit?file=" + encodeURIComponent(file))).json(); }
+  catch (e) { body.innerHTML = `<div class="auditRow"><span class="muted">Could not load this backup.</span></div>`; return; }
+  if (!d.ok) { body.innerHTML = `<div class="auditRow"><span class="muted">${esc(d.error || "Error")}</span></div>`; return; }
+  const rows = (d.lines || []).map(l => {
+    const amt = Number(l.amount) || 0;
+    return `<tr><td>${esc(l.account || "")}</td><td>${esc(l.entity || "")}</td>
+      <td class="r ${amt < 0 ? "neg" : "pos"}">${amt < 0 ? "−" : ""}$${fmtMoney(Math.abs(amt))}</td></tr>`;
+  }).join("");
+  const mism = d.mismatch
+    ? `<div class="mdlHint" style="color:var(--red)">⚠ Post-write verification caught a mismatch for this deposit — the apply was refused as unsafe.</div>` : "";
+  body.innerHTML = `
+    <div class="auditBack"><button class="tinybtn" onclick="loadAuditList()">‹ Back to list</button></div>
+    ${mism}
+    <div class="auditMeta">
+      <b>Deposit</b><span>#${esc(d.deposit_id)}</span>
+      <b>Applied</b><span>${esc(d.when || "")}</span>
+      <b>Statement date</b><span>${esc(d.txn_date || "")}</span>
+      <b>Deposit account</b><span>${esc(d.deposit_account || "")}</span>
+      <b>Total</b><span>$${fmtMoney(d.total || 0)} · ${esc(d.line_count)} lines</span>
+      ${d.private_note ? `<b>Note</b><span>${esc(d.private_note)}</span>` : ""}
+    </div>
+    <table class="auditTbl">
+      <thead><tr><th>Account</th><th>Customer</th><th class="r">Amount</th></tr></thead>
+      <tbody>${rows || `<tr><td colspan="3" class="muted">No lines recorded.</td></tr>`}</tbody>
+    </table>`;
+}
+
+// ---- Environment switch (Sandbox ⇄ Production) ----
+function openEnv() { $("envOverlay").classList.add("open"); renderEnv(); }
+function closeEnv() { $("envOverlay").classList.remove("open"); }
+
+async function renderEnv() {
+  const body = $("envBody");
+  body.innerHTML = `<div class="envCard"><span class="muted">Loading…</span></div>`;
+  let d;
+  try { d = await (await fetch("/api/env")).json(); }
+  catch (e) { body.innerHTML = `<div class="envCard"><span class="muted">Could not read environment.</span></div>`; return; }
+  ENV = d.environment; updateEnvBanner();
+  const variants = d.variants || {};
+  const cur = d.environment;
+  const curPill = cur === "production"
+    ? `<span class="badge c-low">PRODUCTION</span>` : `<span class="badge c-high">SANDBOX</span>`;
+  let html = `<div class="envCard">
+    <h3>Currently targeting ${curPill}</h3>
+    <p>This changes only <b>which QuickBooks company</b> the app talks to — it never changes the books. Every apply still goes through screening, your approval, and post-write verification.</p>
+  </div>`;
+  if (cur !== "sandbox") {
+    const ok = variants.sandbox;
+    html += `<div class="envCard">
+      <h3>🧪 Sandbox</h3>
+      <p>Safe practice company. Switching back is immediate.</p>
+      <button class="primary" ${ok ? "" : "disabled"} onclick="switchEnv('sandbox')">${ok ? "Switch to Sandbox" : ".env.sandbox missing"}</button>
+    </div>`;
+  }
+  if (cur !== "production") {
+    const ok = variants.production;
+    html += `<div class="envCard warn">
+      <h3>⚠ Production — live books</h3>
+      <p>Points the app at the <b>real company</b>. If the production sign-in isn't current you'll reconnect QuickBooks afterward. Type <b>PRODUCTION</b> to confirm.</p>
+      <div><input id="prodConfirm" placeholder="PRODUCTION" ${ok ? "" : "disabled"} autocomplete="off">
+      <button class="danger" ${ok ? "" : "disabled"} onclick="switchEnv('production')">${ok ? "Switch to Production" : ".env.production missing"}</button></div>
+    </div>`;
+  }
+  body.innerHTML = html;
+}
+
+async function switchEnv(target) {
+  const payload = { target };
+  if (target === "production") {
+    payload.confirm = ($("prodConfirm") ? $("prodConfirm").value : "").trim();
+    if (payload.confirm !== "PRODUCTION") { showToast("Type PRODUCTION to confirm.", false); return; }
+  } else if (!confirm("Switch to SANDBOX?\n\nThe app will point at the sandbox company.")) {
+    return;
+  }
+  try {
+    const d = await (await fetch("/api/env/switch", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+    })).json();
+    if (!d.ok) { showToast(d.error || "Switch failed.", false); return; }
+    if (d.switched) {
+      ENV = d.environment; updateEnvBanner();
+      const good = !d.quickbooks || d.quickbooks.connected !== false;
+      showToast(d.note || `Now targeting ${d.environment.toUpperCase()}.`, good);
+    }
+    renderEnv();
+  } catch (e) {
+    showToast("Switch failed — is the server running?", false);
+  }
+}
+
+// ---- Dark / light theme (persisted) ----
+function applyTheme(t) {
+  document.documentElement.setAttribute("data-theme", t);
+  try { localStorage.setItem("osa-theme", t); } catch (e) {}
+  $("themeBtn").textContent = t === "light" ? "🌙 Dark" : "☀️ Light";
+}
+function toggleTheme() {
+  const light = document.documentElement.getAttribute("data-theme") === "light";
+  applyTheme(light ? "dark" : "light");
+}
+let SAVED_THEME = "dark";
+try { SAVED_THEME = localStorage.getItem("osa-theme") || "dark"; } catch (e) {}
+applyTheme(SAVED_THEME);
+$("themeBtn").onclick = toggleTheme;
+
+// ---- In-app packet search ----
+$("pdfSearch").addEventListener("input", runPdfSearch);
+$("pdfSearch").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") { e.preventDefault(); gotoPdfMatch(PDF_MATCH_I + (e.shiftKey ? -1 : 1)); }
+});
+$("pdfPrev").onclick = () => gotoPdfMatch(PDF_MATCH_I - 1);
+$("pdfNext").onclick = () => gotoPdfMatch(PDF_MATCH_I + 1);
+
+$("fetchBtn").onclick = fetchPackets;
+$("connectorsBtn").onclick = openConnectors;
+$("connClose").onclick = closeConnectors;
+$("connOverlay").addEventListener("pointerdown", (e) => { if (e.target === $("connOverlay")) closeConnectors(); });
+
+$("auditBtn").onclick = openAudits;
+$("envBanner").onclick = openEnv;
+$("auditOverlay").addEventListener("pointerdown", (e) => { if (e.target === $("auditOverlay")) closeAudits(); });
+$("envOverlay").addEventListener("pointerdown", (e) => { if (e.target === $("envOverlay")) closeEnv(); });
+
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") { closeConnectors(); closeAudits(); closeEnv(); }
+});
+
+$("previewBtn").onclick = () => preview(false);
+$("resetBtn").onclick = resetReview;
+$("lookupBtn").onclick = lookupDeposits;
+$("attachBtn").onclick = attachDeposit;
+$("previewDepBtn").onclick = previewDeposit;
+// The account picker is anchored to a fixed position — close it if its anchor moves.
+$("detailScroll").addEventListener("scroll", closeAcctPicker);
+window.addEventListener("resize", closeAcctPicker);
+setStep(1);
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,75 @@
+{
+  "gmail_query": "has:attachment filename:pdf \"Owner Statement\" newer_than:90d",
+  "deposit_search": {
+    "days_before_statement": 5,
+    "days_after_month_end": 75
+  },
+  "properties": {
+    "500 Oak Street": {
+      "use_expert_history_rules": true,
+      "quickbooks_customer": "500 Oak Street",
+      "memo_keywords": [
+        "500 Oak Street",
+        "SAMPLE PM LLC DISTRIBUTI"
+      ],
+      "category_accounts": {
+        "Rental Income, Airbnb": "Sales:Rental Income",
+        "Rental Income, VRBO/Misc": "Sales:Rental Income",
+        "Job Supplies expense": "Supplies",
+        "Listing Site Host Fees": "Advertising & marketing:Listing fees",
+        "Office Supplies & Software": "Utilities:Internet & TV services",
+        "PM Fees": "General business expenses:Property management fees",
+        "Repairs & Maintenance": "Repairs & maintenance"
+      }
+    },
+    "John Sample": {
+      "use_expert_history_rules": true,
+      "quickbooks_customer": "742 Maple Ave",
+      "description_mode": "blank",
+      "blank_entity_categories": [
+        "Property Reserve"
+      ],
+      "memo_keywords": [
+        "Keyrenter",
+        "Keyrenter Chatta",
+        "John Sample",
+        "SIGNONFILE",
+        "SIGONFILE"
+      ],
+      "customer_by_property_class": {
+        "742 Maple Ave": "742 Maple Ave",
+        "88 Birch Lane": "88 Birch Lane",
+        "10, 12 Cedar St": "Cedar Street Duplexes:10, 12 Cedar St",
+        "14, 16 Cedar St": "Cedar Street Duplexes:14, 16 Cedar St",
+        "18, 20 Cedar St": "Cedar Street Duplexes:18, 20 Cedar St"
+      },
+      "category_accounts": {
+        "Rental Income": "Sales:Rental Income",
+        "Property management fees": "General business expenses:Property management fees",
+        "Leasing Fee": "Commissions & fees:Leasing Fee",
+        "Plumbing": "Repairs & maintenance:Plumbing",
+        "Repairs & Maintenance": "Repairs & maintenance",
+        "HVAC": "Repairs & maintenance:HVAC",
+        "Refrigerator maintenance": "Repairs & maintenance:Refrigerator maintenance",
+        "Door Installation": "Repairs & maintenance:Door Installation",
+        "Dishwasher Installation": "Repairs & maintenance:Dishwasher Installation",
+        "Transfer funds": "Partner investments:Transfer funds to other property account",
+        "Contract labor": "Contract labor",
+        "Exterminator": "Contract labor:Exterminator",
+        "Mowing Service": "Contract labor:Mowing Services",
+        "Cleaning": "General business expenses:Cleaning",
+        "Water & sewer": "Utilities:Water & sewer",
+        "Gas Utility": "Gas Utility",
+        "Security deposits": "Security deposits",
+        "Move Out Refund": "Move Out Refund",
+        "Appliances": "Furniture & fixtures:Appliances",
+        "Property Reserve": "Partner distributions:Property Cash Reserve",
+        "Owner Contribution": "Partner investments",
+        "Liability insurance": "Insurance:Liability insurance",
+        "Insurance": "Insurance",
+        "Accounting fees": "Legal & accounting services:Accounting fees",
+        "Admin Fee": "Sales:Rental Income:Admin Fee"
+      }
+    }
+  }
+}
