@@ -1,10 +1,10 @@
-# Audit Trail — Project Context
+# Audit Trail - Project Context
 
 Last updated: 2026-06-28
 
 ## Project identity
 
-**Audit Trail** is a production-oriented QuickBooks Online automation platform.
+This project is a production-oriented QuickBooks Online automation platform.
 
 It is not just a PDF parser or a scripting project. The goal is to build reliable accounting software that automates owner-statement processing while maintaining accounting accuracy, safety, reviewability, and auditability.
 

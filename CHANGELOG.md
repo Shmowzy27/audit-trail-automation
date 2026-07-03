@@ -43,6 +43,13 @@ Phase 2 — Stabilization (current focus). See [ROADMAP.md](ROADMAP.md) and
   files. The switch never touches the books; every apply still goes through screening,
   approval, and post-write verification (`/api/env/switch`). Safety guards regression-tested
   (`tests/test_ui_server.py`).
+- **Browser end-to-end tests (Playwright).** A `pytest-playwright` smoke suite (`tests/e2e/`)
+  launches the real Flask UI in a background thread — QuickBooks stubbed out (bad token path,
+  so it never contacts live books), config from the tracked `config.example.json`, empty
+  statement/audit dirs — and drives a headless Chromium browser to lock in the page shell and
+  the recent UI features (brand title, environment banner + switch modal, connectors panel,
+  audit-history viewer, dark/light theme). 7 tests; run with `pytest tests/e2e`. Test-only
+  dependencies are captured in `requirements-dev.txt`.
 - **`fetch-keyrenter` command — AppFolio owner-portal connector (staged upgrade).**
   AppFolio has no API, so this drives Chromium via Playwright: `--login` opens a visible
   browser for a one-time manual sign-in (email codes/2FA work naturally; session saved to

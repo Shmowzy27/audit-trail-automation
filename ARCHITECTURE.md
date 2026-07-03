@@ -1,4 +1,4 @@
-# Audit Trail — Architecture
+# Audit Trail - Architecture
 
 Last updated: 2026-06-29
 

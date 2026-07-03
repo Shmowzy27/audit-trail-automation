@@ -12,6 +12,15 @@ __pycache__/
 secrets/
 runtime/
 
+# Private maintenance tooling — the sanitization map is a concentrated list of real
+# client identifiers, so it must never be committed or synced to the public repo.
+tools/
+
 *.log
 
 .claude/
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key

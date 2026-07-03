@@ -1,0 +1,11 @@
+# Test / development dependencies (not required to run the app).
+#
+# Install:
+#   pip install -r requirements-dev.txt
+#   playwright install chromium        # one-time browser download for the E2E tests
+#
+# Run:
+#   pytest                 # everything (unit + browser E2E)
+#   pytest tests/e2e       # just the Playwright UI smoke tests
+pytest>=8,<10
+pytest-playwright>=0.7,<1
